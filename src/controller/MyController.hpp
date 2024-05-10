@@ -3,10 +3,12 @@
 #define MyController_hpp
 
 #include "dto/MyDTOs.hpp"
+#include "service/DataService.hpp"
 
 #include "oatpp/web/server/api/ApiController.hpp"
 #include "oatpp/core/macro/codegen.hpp"
 #include "oatpp/core/macro/component.hpp"
+
 
 #include OATPP_CODEGEN_BEGIN(ApiController) //<-- Begin codegen
 
@@ -16,10 +18,19 @@
  *  More details on oatpp.io
  */
 class MyController : public oatpp::web::server::api::ApiController {
+  typedef oatpp::web::protocol::http::Status Status;
 protected:
   MyController(const std::shared_ptr<ObjectMapper>& objectMapper)
   : oatpp::web::server::api::ApiController(objectMapper)
   {}
+private:
+   typedef MyController __ControllerType;
+   DataService m_dataService;
+  static oatpp::String loadFile(const char* filename) {
+    auto buffer = oatpp::String::loadFromFile(filename);
+    OATPP_ASSERT_HTTP(buffer, Status::CODE_404, "File Not Found:(");
+    return buffer;
+  }
 public:
   
   /**
@@ -31,26 +42,167 @@ public:
     return std::shared_ptr<MyController>(new MyController(objectMapper));
   }
   
-  /**
-   *  Hello World endpoint Coroutine mapped to the "/" (root)
-   */
-  ENDPOINT_ASYNC("GET", "/", Root) {
-    
+
+ENDPOINT_ASYNC("GET", "/", Root) {
+
     ENDPOINT_ASYNC_INIT(Root)
-    
-    /**
-     *  Coroutine entrypoint act()
-     *  returns Action (what to do next)
-     */
+
     Action act() override {
-      auto dto = HelloDto::createShared();
-      dto->message = "Hello Async!";
-      dto->server = Header::Value::SERVER;
-      dto->userAgent = request->getHeader(Header::USER_AGENT);
-      return _return(controller->createDtoResponse(Status::CODE_200, dto));
+      
+      static auto fileCache = loadFile("webres/meter/index.html");
+      auto response = controller->createResponse(Status::CODE_200, fileCache);
+      response->putHeader(Header::CONTENT_TYPE, "text/html");
+      return _return(response);
     }
-    
+
   };
+
+ENDPOINT_ASYNC("GET", "/pages/instantaneous.html", instantaneous) {
+
+    ENDPOINT_ASYNC_INIT(instantaneous)
+
+    Action act() override {
+      
+      static auto fileCache = loadFile("webres/meter//pages/instantaneous.html");
+      auto response = controller->createResponse(Status::CODE_200, fileCache);
+      response->putHeader(Header::CONTENT_TYPE, "text/html");
+      return _return(response);
+    }
+
+  };
+
+
+
+  ENDPOINT_ASYNC("GET", "/pages/instantaneous/{classid}/{obis}/{attr}", readinstan) {
+
+    ENDPOINT_ASYNC_INIT(readinstan)
+
+    Action act() override {
+      Status status = Status::CODE_200;
+    String errmsg;
+
+      oatpp::UInt32 classid = atoi(request->getPathVariable("classid")->c_str());
+      String obis = request->getPathVariable("obis");
+      oatpp::UInt32 attr = atoi(request->getPathVariable("attr")->c_str());
+
+      auto frd=controller->m_dataService.readurl(classid,obis,attr,status,errmsg);
+      return _return(controller->createDtoResponse(Status::CODE_200, frd));
+      
+
+
+
+     
+      
+    }
+
+  };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ENDPOINT_ASYNC("GET", "/pages/firmware.html", firmware) {
+
+    ENDPOINT_ASYNC_INIT(firmware)
+
+    Action act() override {
+      
+      static auto fileCache = loadFile("webres/meter//pages/firmware.html");
+      auto response = controller->createResponse(Status::CODE_200, fileCache);
+      response->putHeader(Header::CONTENT_TYPE, "text/html");
+      return _return(response);
+    }
+
+  };
+
+  ENDPOINT_ASYNC("GET", "/pages/loadprofile.html", loadprofile) {
+
+    ENDPOINT_ASYNC_INIT(loadprofile)
+
+    Action act() override {
+      
+      static auto fileCache = loadFile("webres/meter//pages/loadprofile.html");
+      auto response = controller->createResponse(Status::CODE_200, fileCache);
+      response->putHeader(Header::CONTENT_TYPE, "text/html");
+      return _return(response);
+    }
+
+  };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  ENDPOINT_ASYNC("POST", "/data", getrequest){
+      ENDPOINT_ASYNC_INIT(getrequest)
+
+          Action act() override{
+              //OATPP_LOGD("UserController", "get data");
+              return request->readBodyToDtoAsync<oatpp::Object<dlmsDto>>(
+                    controller->getDefaultObjectMapper())
+              .callbackTo(&getrequest::getread);
+  }
+
+  Action getread(const oatpp::Object<dlmsDto> &data)
+  {
+    Status status = Status::CODE_200;
+    String errmsg;
+
+    //OATPP_LOGD("UserController", "raed");
+    auto mess = controller->m_dataService.readdata(data->classid, data->obis, data->attribute, status, errmsg);
+    if (status != Status::CODE_200)
+    {
+      auto response = controller->createResponse(status, errmsg);
+      response->putHeaderIfNotExists("Content-Type", "application/json");
+      return _return(response);
+    }
+    return _return(controller->createDtoResponse(Status::CODE_200, mess));
+  }
+  }
+  ;
+
+  ENDPOINT_ASYNC("GET", "/index", Rootindex){
+
+      ENDPOINT_ASYNC_INIT(Rootindex)
+
+          Action act() override{
+
+              static auto fileCache = loadFile("webres/front/index.html");
+  auto response = controller->createResponse(Status::CODE_200, fileCache);
+  response->putHeader(Header::CONTENT_TYPE, "text/html");
+  return _return(response);
+    }
+
+  };
+
+
   
   /**
    *  Echo body endpoint Coroutine. Mapped to "/body/string".
@@ -82,6 +234,7 @@ public:
     ENDPOINT_ASYNC_INIT(EchoDtoBody)
     
     Action act() override {
+
       return request->readBodyToDtoAsync<oatpp::Object<MessageDto>>(controller->getDefaultObjectMapper()).callbackTo(&EchoDtoBody::returnResponse);
     }
     

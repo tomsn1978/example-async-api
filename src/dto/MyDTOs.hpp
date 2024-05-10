@@ -29,6 +29,17 @@ class MessageDto : public oatpp::DTO {
   
 };
 
+class dlmsDto : public oatpp::DTO {
+  
+  DTO_INIT(dlmsDto, DTO)
+  DTO_FIELD(UInt32, classid);
+  DTO_FIELD(String, obis);
+  DTO_FIELD(UInt32, attribute);
+  
+};
+
+
+
 #include OATPP_CODEGEN_END(DTO)
 
 #endif /* MyDTOs_hpp */
